@@ -1,39 +1,19 @@
-# ТУМАН
-64 интерактивных NFT-берега на TON. Карта 8×8, покрытая туманом. 4 шага в сутки, каждый раскрывает ячейку навсегда. Эволюция: Слепой → Берег. Пуши в TonKeeper. Механики: шаг, поджог, течение, редут.
+# Генератор изображений — Tuman
 
-## Запуск
+Этот скрипт создаёт 16 процедурных изображений в папку `img/`.
 
-Открыть `index.html` в браузере. Подключить TonKeeper. Играть.
+Файлы, добавленные в ветку feature/add-image-generator:
+- scripts/generate_16_images.py — основной генератор
+- requirements.txt — зависимости (Pillow)
+- .gitignore — исключения
 
-## Структура
+Запуск:
 
-| Файл | Назначение |
-|------|-----------|
-| `index.html` | UI + логика игры |
-| `contract.tact` | cNFT + роллы + эволюция |
-| `CONSTITUTION.md` | Правила, принципы, этапы |
-| `README.md` | Этот файл |
+```bash
+python -m venv .venv
+source .venv/bin/activate  # or .\.venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python scripts/generate_16_images.py
+```
 
-## Этапы
-
-1. **GetHub** — диплом, код, правила
-2. **GetGems** — первый дроп 64 cNFT
-3. **Telegram** — бот, каналы, токен
-4. **Автономия** — система живёт сама
-
-## Стек
-
-- TON (Tact)
-- TonConnect + TonKeeper Messages
-- GetGems
-- Telegram Bot API
-- GitHub Pages
-
-## Снежный ком
-
-| Продано | Множитель |
-|---------|-----------|
-| 0–15 | ×1.0 |
-| 16–31 | ×1.5 |
-| 32–47 | ×2.5 |
-| 48–63 | ×4.0 |
+Результат: 16 JPG-файлов в папке `img/`.
