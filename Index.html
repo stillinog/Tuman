@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ТУМАН</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e0e0e0;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:16px}
+h1{font-size:24px;margin:16px 0;color:#7eb8da;letter-spacing:4px}
+.subtitle{font-size:12px;color:#555;margin-bottom:24px}
+.map{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;width:320px;height:320px;margin:16px 0;border:1px solid #1a1a2e;padding:4px;background:#0d0d14}
+.cell{aspect-ratio:1;background:#111118;border-radius:2px;transition:all .5s;position:relative}
+.cell.fog{background:#111118}
+.cell.dry{background:#2a2a3a}
+.cell.water{background:#1a3a5c}
+.cell.fire{background:#5c2a1a}
+.cell.scar{background:#3a3a3a}
+.cell.silence{background:#0a0a12;border:1px solid #1a1a2e}
+.cell.redut{box-shadow:0 0 8px #7eb8da44;border:1px solid #7eb8da}
+.cell.meeting{box-shadow:0 0 12px #da7eb844;border:1px solid #da7eb8}
+.actions{display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;justify-content:center}
+button{background:#1a1a2e;color:#7eb8da;border:1px solid #2a2a4e;padding:12px 24px;border-radius:4px;font-family:inherit;font-size:14px;cursor:pointer;transition:all .3s}
+button:hover{background:#2a2a4e}
+button:disabled{opacity:.3;cursor:not-allowed}
+button.primary{background:#1a3a5c;border-color:#2a5a8c}
+.journal{width:100%;max-width:360px;margin-top:16px;padding:12px;background:#0d0d14;border:1px solid #1a1a2e;border-radius:4px;max-height:200px;overflow-y:auto;font-size:12px;line-height:1.6}
+.journal-entry{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #1a1a2e}
+.journal-entry .rarity{color:#7eb8da;font-weight:bold}
+.journal-entry .text{color:#aaa;font-style:italic}
+.evo{margin:12px 0;font-size:14px;color:#555}
+.evo span{color:#7eb8da}
+.push{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-100px);background:#1a1a2e;border:1px solid #2a5a8c;padding:12px 20px;border-radius:8px;font-size:13px;max-width:300px;transition:transform .5s;z-index:100}
+.push.show{transform:translateX(-50%) translateY(0)}
+.wallet{margin:8px 0;font-size:11px;color:#444}
+.wallet a{color:#7eb8da;text-decoration:none}
+</style>
+</head>
+<body>
+<h1>ТУМАН</h1>
+<p class="subtitle">Берег #<span id="card-id">—</span> · Форма: <span id="evo-name">Слепой</span></p>
+<div class="map" id="map"></div>
+<div class="evo">Открыто: <span id="opened">0</span>/64 · Роллов: <span id="rolls-left">4</span> · Редут: <span id="redut-status">нет</span></div>
+<div class="actions">
+<button class="primary" id="btn-roll" onclick="doRoll()">Шаг (0.2 TON)</button>
+<button id="btn-merge" onclick="doMerge()">Течение</button>
+<button id="btn-attack" onclick="doAttack()">Поджог (0.5 TON)</button>
+</div>
+<div class="journal" id="journal">
+<div class="journal-entry"><span class="text">Туман. Ничего не видно. Сделай шаг.</span></div>
+</div>
+<div class="wallet" id="wallet"></div>
+<div class="push" id="push"></div>
+<script src="https://unpkg.com/@tonconnect/ui@2"></script>
+<script>
+let state={cardId:0,cells:new Array(64).fill(0),evolution:1,rollsToday:0,journal:[],redut:null,redutExpiry:0,attackToday:0};
+const EVO_NAMES=['Слепой','Идущий','Ищущий','Знающий','Памятующий','Молчавший','Берег'];
+const CELL_NAMES=['туман','сухо','прилив','костёр','шрам','тишина'];
+const RARITY_NAMES=['','Осколок','След','Голос','Имя','Шрам','Тишина','Встреча'];
+const FINDINGS={1:['Здесь была бутылка.','Камень с царапиной.','След босой ноги.','Обломок верёвки.'],2:['Кто-то стоял здесь и смотрел на воду.','Два следа. Один ушёл. Второй нет.','Костёр. Остывший. Кто-то был недавно.'],3:['«Я больше не вернусь.»','«Туман не враг. Туман — это способ.»','«Если ты это читаешь — ты уже здесь.»'],4:['На камне вырезано имя. Ты не знаешь, чьё.','Записка: «Передай #______ что я дошла.»'],5:['Здесь был пожар. Ты не знаешь, чей.','Ячейка помнит. Она больше не будет такой.'],6:['Здесь ничего нет. Но ты это запомнил.'],7:['Ячейка связана. Кто-то стоит на том же берегу.']};
+const SITUATION_LINKS=['Костёр погас. След ведёт к приливу.','Шрам — это то, что осталось от того, что ты поджёг.','Прилив накрывает. Но шрам не моет. Он помнит.','Тишина. Не пустота. Пауза между двумя голосами.','След обрывается. Но туман сдвинулся. Что-то было.'];
+function init() {
+    const saved = localStorage.getItem('tuman_state');
+    if (saved) {
+        state = JSON.parse(saved);
+    }
+    renderMap();
+    updateUI();
+    connectWallet();
+}
+
+function saveState() {
+    localStorage.setItem('tuman_state', JSON.stringify(state));
+}
+function connectWallet(){try{const tc=new TON_CONNECT_UI({url:'https://tonkeeper.com'});tc.connect();tc.onStatusChange(s=>{if(s){document.getElementById('wallet').innerHTML='<a href="#">'+s.address.slice(0,8)+'…</a>'}})}catch(e){document.getElementById('wallet').textContent='TonKeeper не подключён'}}
+
+function renderMap(){const m=document.getElementById('map');m.innerHTML='';for(let i=0;i<64;i++){const c=document.createElement('div');c.className='cell '+getCellClass(i);c.id='cell-'+i;c.onclick=()=>clickCell(i);m.appendChild(c)}}
+function getCellClass(i){const v=state.cells[i];if(v===0)return'fog';if(v===1)return'dry';if(v===2)return'water';if(v===3)return'fire';if(v===4)return'scar';if(v===5)return'silence';return'fog'}
+function doRoll(){if(state.rollsToday>=4){showPush('Роллы закончились. Сброс 00:00 UTC.');return}const empty=state.cells.map((v,i)=>v===0?i:-1).filter(i=>i>=0);if(empty.length===0){showPush('Карта полностью открыта. Ты — Берег.');return}const cell=empty[Math.floor(Math.random()*empty.length)];const roll=Math.random()*100;let result,rarity=0;if(roll<35){result=1}else if(roll<65){result=[2,3,4,5][Math.floor(Math.random()*4)]}else if(roll<85){result=1;rarity=rollRarity()}else if(roll<95){result=4;const opened=state.cells.map((v,i)=>v>0&&v!==4?i:-1).filter(i=>i>=0);if(opened.length>0){state.cells[opened[Math.floor(Math.random()*opened.length)]]=4}}else{result=1;const c2=empty.filter(c=>c!==cell);if(c2.length>0){state.cells[c2[Math.floor(Math.random()*c2.length)]]=1}}state.cells[cell]=result;state.rollsToday++;if(rarity>0){const texts=FINDINGS[rarity];const text=texts[Math.floor(Math.random()*texts.length)];state.journal.push({rarity,text,cell,day:Math.floor(Date.now()/86400000)});addJournalEntry(rarity,text,cell);showPush('['+RARITY_NAMES[rarity]+'] ('+Math.floor(cell/8)+','+cell%8+'): «'+text+'»')}else{showPush('Туман отступил. ('+Math.floor(cell/8)+','+cell%8+') → '+CELL_NAMES[result]+'.')}checkEvolution();checkRedut();renderMap();updateUI()}
+function rollRarity(){const r=Math.random()*100;if(r<40)return 1;if(r<65)return 2;if(r<80)return 3;if(r<90)return 4;if(r<95)return 5;if(r<98)return 6;return 7}
+function checkEvolution(){const opened=state.cells.filter(v=>v>0).length;const has=j=>state.journal.some(x=>x.rarity>=j);let e=1;if(opened>=10)e=2;if(opened>=20&&has(3))e=3;if(opened>=30&&has(4))e=4;if(opened>=40&&has(5))e=5;if(opened>=50&&has(6))e=6;if(opened>=60&&has(7))e=7;if(e>state.evolution){state.evolution=e;showPush('Эволюция: '+EVO_NAMES[e-1]+'.')}}
+function checkRedut(){const counts={2:0,3:0,4:0,5:0};state.cells.forEach(v=>{if(counts[v]!==undefined)counts[v]++});for(const[t,c]of Object.entries(counts)){if(c>=5&&!state.redut){state.redut={type:+t,created:Date.now(),expiry:Date.now()+172800000};showPush('Редут. '+c+' '+CELL_NAMES[+t]+'(ов). 48 часов.');break}}if(state.redut&&Date.now()>state.redutExpiry){state.redut=null;showPush('Редут рассеялся.')}}
+function updateUI(){document.getElementById('card-id').textContent=state.cardId||'—';document.getElementById('evo-name').textContent=EVO_NAMES[state.evolution-1];document.getElementById('opened').textContent=state.cells.filter(v=>v>0).length;document.getElementById('rolls-left').textContent=4-state.rollsToday;document.getElementById('redut-status').textContent=state.redut?CELL_NAMES[state.redut.type]:'нет';document.getElementById('btn-roll').disabled=state.rollsToday>=4}
+function addJournalEntry(rarity,text,cell){const d=document.createElement('div');d.className='journal-entry';d.innerHTML='<span class="rarity">['+RARITY_NAMES[rarity]+'] ('+Math.floor(cell/8)+','+cell%8+')</span><br><span class="text">'+text+'</span>';document.getElementById('journal').prepend(d)}
+function showPush(t){const el=document.getElementById('push');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4000)}
+function clickCell(i){const v=state.cells[i];if(v>0){const entries=state.journal.filter(j=>j.cell===i);if(entries.length>0){showPush('('+Math.floor(i/8)+','+i%8+'): '+entries[entries.length-1].text)}else{showPush('('+Math.floor(i/8)+','+i%8+'): '+CELL_NAMES[v]+'.')}}}
+function doMerge(){showPush('Течение: ищи другого берега. Оба должны согласиться.')}
+function doAttack(){if(state.attackToday>=1){showPush('Поджог уже использован сегодня.');return}showPush('Поджог: выбери цель. (После подключения контракта)')}
+init();
+</script>
+</body>
+</html>
